@@ -150,7 +150,7 @@ export default function AttendancePage() {
     <main className="relative grid min-h-dvh place-items-center overflow-hidden bg-slate-50 px-4 py-8 text-slate-900">
       {/* Background */}
       <div aria-hidden="true" className="absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-blue-950 to-blue-900" />
-      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-72 opacity-[.03]" style={{backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '20px 20px'}} />
+      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-72 opacity-[.03]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '20px 20px' }} />
 
       <section className="animate-fade-in-up relative w-full max-w-md overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-950/15">
         {/* Top accent bar */}
@@ -232,8 +232,7 @@ export default function AttendancePage() {
 
           {/* Info footer */}
           <p className="mt-6 border-t border-slate-100 pt-4 text-xs leading-5 text-slate-400">
-            Sistem menggunakan token anonim pada browser untuk membatasi check-in ganda. Menghapus penyimpanan, mode privat, browser, atau perangkat lain dapat melewati batas ini.
-          </p>
+            Sistem menggunakan token anonim pada browser untuk membatasi check-in ganda.</p>
         </div>
       </section>
 
