@@ -48,6 +48,96 @@ function eventFriendlyError(code: string) {
   return 'Acara gagal disimpan. Periksa koneksi lalu coba lagi.';
 }
 
+function generateQrCard(qrDataUrl: string, label: string): Promise<string> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') {
+      resolve(qrDataUrl);
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const cardWidth = 720;
+      const qrSize = 580;
+      const paddingX = (cardWidth - qrSize) / 2;
+      const paddingTop = 48;
+      const gap = 28;
+      const fontSize = 24;
+      const bottomPadding = 42;
+      const radius = 28;
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(qrDataUrl);
+        return;
+      }
+
+      ctx.font = `600 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+
+      const maxTextWidth = cardWidth - 64;
+      const words = label.split(' ');
+      const lines: string[] = [];
+      let currentLine = '';
+
+      for (const word of words) {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        if (ctx.measureText(testLine).width > maxTextWidth && currentLine) {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+
+      const lineHeight = fontSize * 1.4;
+      const textBlockHeight = lines.length * lineHeight;
+      const cardHeight = Math.round(paddingTop + qrSize + gap + textBlockHeight + bottomPadding);
+
+      canvas.width = cardWidth;
+      canvas.height = cardHeight;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(0, 0, cardWidth, cardHeight, radius);
+      } else {
+        ctx.moveTo(radius, 0);
+        ctx.lineTo(cardWidth - radius, 0);
+        ctx.quadraticCurveTo(cardWidth, 0, cardWidth, radius);
+        ctx.lineTo(cardWidth, cardHeight - radius);
+        ctx.quadraticCurveTo(cardWidth, cardHeight, cardWidth - radius, cardHeight);
+        ctx.lineTo(radius, cardHeight);
+        ctx.quadraticCurveTo(0, cardHeight, 0, cardHeight - radius);
+        ctx.lineTo(0, radius);
+        ctx.quadraticCurveTo(0, 0, radius, 0);
+      }
+      ctx.fill();
+
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.stroke();
+
+      ctx.drawImage(img, paddingX, paddingTop, qrSize, qrSize);
+
+      ctx.fillStyle = '#1e293b';
+      ctx.font = `600 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const textStartY = paddingTop + qrSize + gap + lineHeight / 2;
+      lines.forEach((line, index) => {
+        ctx.fillText(line, cardWidth / 2, textStartY + index * lineHeight);
+      });
+
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(qrDataUrl);
+    img.src = qrDataUrl;
+  });
+}
+
 /* ─── SVG Icons ─── */
 function IconDashboard() { return <svg xmlns="http://www.w3.org/2000/svg" className="size-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>; }
 function IconCalendar() { return <svg xmlns="http://www.w3.org/2000/svg" className="size-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" /></svg>; }
@@ -463,11 +553,13 @@ export default function AdminPage() {
     event.preventDefault(); setBusy(true);
     try {
       const result = await request(`/admin/events/${selectedEvent}/mahalis/${selectedMahali}/qr`, { method: 'POST' });
-      setQrData(result.qrDataUrl);
       const mahali = mahalis.find((item) => String(item.id) === selectedMahali);
       const eventName = events.find((item) => String(item.id) === selectedEvent)?.name;
-      setQrLabel(`${eventName ?? 'Acara'} — ${mahali?.name ?? 'Mahali'}`);
-      notifySuccess('QR Berhasil Dibuat', 'QR siap diunduh dan digunakan untuk absensi.');
+      const fullLabel = `${eventName ?? 'Acara'} — ${mahali?.name ?? 'Mahali'}`;
+      setQrLabel(fullLabel);
+      const cardImage = await generateQrCard(result.qrDataUrl, fullLabel);
+      setQrData(cardImage);
+      notifySuccess('QR Berhasil Dibuat', 'Kartu QR siap diunduh dan digunakan untuk absensi.');
       setIsQrModalOpen(false);
     } catch (e) {
       notifyError('Gagal Membuat QR', e instanceof Error && e.message === 'ALREADY_LINKED'
@@ -481,10 +573,12 @@ export default function AdminPage() {
   async function previewQr(link: QrLink) {
     try {
       const result = await request(`/admin/event-mahalis/${link.id}/qr`);
-      setQrData(result.qrDataUrl);
       const eventName = events.find((item) => String(item.id) === selectedEvent)?.name;
-      setQrLabel(`${eventName ?? 'Acara'} — ${link.name}`);
-      notifySuccess('Pratinjau QR', `QR untuk ${link.name} siap diunduh.`);
+      const fullLabel = `${eventName ?? 'Acara'} — ${link.name}`;
+      setQrLabel(fullLabel);
+      const cardImage = await generateQrCard(result.qrDataUrl, fullLabel);
+      setQrData(cardImage);
+      notifySuccess('Pratinjau QR', `Kartu QR untuk ${link.name} siap diunduh.`);
     } catch {
       notifyError('Gagal Memuat QR', 'Gambar QR tidak dapat dimuat.');
     }
@@ -514,8 +608,10 @@ export default function AdminPage() {
     try {
       const result = await request(`/admin/event-mahalis/${link.id}/qr`, { method: 'PATCH', body: JSON.stringify(patch) });
       if (result.qrDataUrl) {
-        setQrData(result.qrDataUrl);
-        setQrLabel(`${events.find((item) => String(item.id) === selectedEvent)?.name ?? 'Acara'} — ${link.name}`);
+        const fullLabel = `${events.find((item) => String(item.id) === selectedEvent)?.name ?? 'Acara'} — ${link.name}`;
+        setQrLabel(fullLabel);
+        const cardImage = await generateQrCard(result.qrDataUrl, fullLabel);
+        setQrData(cardImage);
       }
       notifySuccess(patch.rotate ? 'QR Telah Dirotasi' : `QR ${patch.active ? 'diaktifkan' : 'dinonaktifkan'}`);
       setQrLinks((items) => items.map((item) => item.id === link.id ? { ...item, is_active: patch.rotate ? 1 : Number(patch.active) } : item));
@@ -1462,12 +1558,11 @@ function QrPage({ events, links, selectedEvent, data, label, isAdmin, onEvent, o
 
           {data.startsWith('data:image') ? (
             <div className="animate-scale-in">
-              <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <img className="mx-auto aspect-square w-full max-w-64" src={data} alt={`QR absensi ${label}`} />
-                <p className="mt-3 text-center text-xs font-semibold text-slate-700">{label}</p>
+              <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/50 p-2 text-center shadow-sm">
+                <img className="mx-auto w-full max-w-64 rounded-xl shadow-xs" src={data} alt={`Kartu QR absensi ${label}`} />
               </div>
               <a className={`${primaryButton} mt-4 w-full justify-center`} href={data} download={`qr-${label.toLowerCase().replace(/[^a-z0-9]/g, '-')}.png`}>
-                <IconDownload /> Unduh Gambar PNG
+                <IconDownload /> Unduh Kartu QR (PNG)
               </a>
             </div>
           ) : (
